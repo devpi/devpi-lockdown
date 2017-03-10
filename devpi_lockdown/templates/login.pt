@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+    <head>
+        <title>devpi - Login</title>
+        <metal:head use-macro="request.macros['head']" />
+        <script src="${request.static_url('devpi_web:static/docview.js')}"></script>
+    </head>
+    <body>
+        <metal:search use-macro="request.macros['navigation']" />
+        <form name="login" method="post">
+            <label for="username">Username</label>
+            <input name="username" type="text" />
+            <label for="password">Password</label>
+            <input name="password" type="password" />
+            <button name="submit">Login</button>
+        </form>
+        <metal:footer use-macro="request.macros['footer']" />
+    </body>
+</html>
