@@ -74,6 +74,12 @@ For nginx the `auth_request`_ module is required and the configuration would som
             proxy_pass http://localhost:3141;
         }
 
+        # pass on /+static without authentication check for browser access to css etc
+        location /+static/ {
+            proxy_set_header X-outside-url https://$host;
+            proxy_pass http://localhost:3141;
+        }
+
         # use auth_request to lock down all the rest
         location / {
             auth_request /+authcheck;
