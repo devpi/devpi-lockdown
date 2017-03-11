@@ -38,7 +38,7 @@ The views are:
   Drops the authentication cookie.
 
 
-For nginx the `auth_request`_ module is required and the configuration would something look like this:
+  For nginx the `auth_request`_ module is required and the configuration would something look like this:
 
 .. code-block:: nginx
 
@@ -62,32 +62,35 @@ For nginx the `auth_request`_ module is required and the configuration would som
             proxy_pass http://localhost:3141;
         }
 
+        # lock down everything by default
+        auth_request /+authcheck;
+
         # pass on /+login without authentication check to allow login
         location = /+login {
+            auth_request off;
             proxy_set_header X-outside-url https://$host;
             proxy_pass http://localhost:3141;
         }
 
         # pass on /+api without authentication check for URL endpoint discovery
         location ~ /\+api$ {
+            auth_request off;
             proxy_set_header X-outside-url https://$host;
             proxy_pass http://localhost:3141;
         }
 
         # pass on /+static without authentication check for browser access to css etc
         location /+static/ {
+            auth_request off;
             proxy_set_header X-outside-url https://$host;
             proxy_pass http://localhost:3141;
         }
 
         # use auth_request to lock down all the rest
         location / {
-            auth_request /+authcheck;
             proxy_set_header X-outside-url https://$host;
             proxy_pass http://localhost:3141;
         }
     }
-
-If you use the example configuration from ``devpi-server`` then you have to add the ``auth_request`` check to the file and documentation parts as well.
 
 .. _auth_request: http://nginx.org/en/docs/http/ngx_http_auth_request_module.html
