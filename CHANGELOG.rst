@@ -1,8 +1,10 @@
 Changelog
 =========
 
-1.0.1 - Unreleased
+1.0.1 - 2018-11-16
 ------------------
+
+- Fix import for Pyramid >= 1.10.0.
 
 - Add /+static to configuration
 
