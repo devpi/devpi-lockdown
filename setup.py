@@ -39,7 +39,7 @@ setup(
         'devpi_server': [
             "devpi-lockdown = devpi_lockdown.main"]},
     install_requires=[
-        'devpi-server'],
+        'devpi-web'],
     include_package_data=True,
     zip_safe=False,
     packages=['devpi_lockdown'])

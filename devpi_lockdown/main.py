@@ -1,7 +1,10 @@
-from pyramid.authentication import _SimpleSerializer
 from pyramid.compat import url_unquote, url_quote
 from pyramid.httpexceptions import HTTPFound, HTTPOk, HTTPUnauthorized
 from pyramid.interfaces import IAuthenticationPolicy
+try:
+    from pyramid.util import SimpleSerializer
+except ImportError:
+    from pyramid.authentication import _SimpleSerializer as SimpleSerializer
 from pyramid.view import view_config
 from webob.cookies import CookieProfile
 
@@ -57,7 +60,7 @@ def get_cookie_profile(request, max_age=0):
         httponly=True,
         max_age=max_age,
         secure=request.scheme == 'https',
-        serializer=_SimpleSerializer()).bind(request)
+        serializer=SimpleSerializer()).bind(request)
 
 
 @view_config(
