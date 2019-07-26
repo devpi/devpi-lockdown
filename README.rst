@@ -46,6 +46,7 @@ The views are:
         ...
 
         # this redirects to the login view when not logged in
+        recursive_error_pages on;
         error_page 401 = @error401;
         location @error401 {
             return 302 /+login;
