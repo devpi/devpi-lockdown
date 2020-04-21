@@ -1,6 +1,14 @@
 Changelog
 =========
 
+2.0.0 - Unreleased
+------------------
+
+- Dropped Python 2.7 and 3.4 support.
+
+- Python 3.5 support will be dropped at its EOL in September 2020.
+
+
 1.0.1 - 2018-11-16
 ------------------
 
