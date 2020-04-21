@@ -1,3 +1,4 @@
+from pluggy import HookimplMarker
 from pyramid.compat import url_unquote, url_quote
 from pyramid.httpexceptions import HTTPFound, HTTPOk, HTTPUnauthorized
 from pyramid.interfaces import IAuthenticationPolicy
@@ -9,9 +10,12 @@ from pyramid.view import view_config
 from webob.cookies import CookieProfile
 
 
+devpiserver_hookimpl = HookimplMarker("devpiserver")
+
+
 def includeme(config):
     config.add_route(
-        "authcheck",
+        "/+authcheck",
         "/+authcheck")
     config.add_route(
         "login",
@@ -24,12 +28,14 @@ def includeme(config):
     config.scan()
 
 
+@devpiserver_hookimpl
 def devpiserver_pyramid_configure(config, pyramid_config):
     # by using include, the package name doesn't need to be set explicitly
     # for registrations of static views etc
     pyramid_config.include('devpi_lockdown.main')
 
 
+@devpiserver_hookimpl
 def devpiserver_get_credentials(request):
     """Extracts username and password from cookie.
 
@@ -47,7 +53,16 @@ def devpiserver_get_credentials(request):
     return username, password
 
 
-@view_config(route_name="authcheck")
+@devpiserver_hookimpl(optionalhook=True)
+def devpiserver_authcheck_always_ok(request):
+    route = request.matched_route
+    if route and route.name == 'login':
+        return True
+    if route and '+static' in route.name and '/+static' in request.url:
+        return True
+
+
+@view_config(route_name="/+authcheck")
 def authcheck_view(context, request):
     if not request.authenticated_userid:
         return HTTPUnauthorized()
