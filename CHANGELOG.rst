@@ -4,7 +4,13 @@ Changelog
 2.0.0 - Unreleased
 ------------------
 
+.. note:: The nginx configuration has changed from 1.x.
+
 - Dropped Python 2.7, 3.4 and 3.5 support.
+
+- Support for devpi-server 6.0.0.
+
+- Automatically allow locations required for login page.
 
 
 1.0.1 - 2018-11-16

@@ -1,3 +1,6 @@
+from webob.headers import ResponseHeaders
+
+
 def test_importable():
     import devpi_lockdown
     assert devpi_lockdown.__version__
@@ -13,3 +16,32 @@ def test_login(mapp, testapp):
     assert r.status_code == 302
     assert r.location == 'http://localhost/'
     testapp.xget(200, 'http://localhost/+authcheck')
+
+
+def test_always_ok(testapp):
+    testapp.xget(
+        200, 'http://localhost/+authcheck',
+        headers=ResponseHeaders({
+            'X-Original-URI': 'http://localhost/+api'}))
+    testapp.xget(
+        200, 'http://localhost/+authcheck',
+        headers=ResponseHeaders({
+            'X-Original-URI': 'http://localhost/+login',
+            'Accept': 'application/json'}))
+    testapp.xget(
+        200, 'http://localhost/+authcheck',
+        headers=ResponseHeaders({
+            'X-Original-URI': 'http://localhost/+login'}))
+    r = testapp.xget(200, 'http://localhost/+login')
+    for elem in r.html.select('link, script'):
+        uri = None
+        if elem.name.lower() == 'link':
+            uri = elem.attrs.get('href')
+        elif elem.name.lower() == 'script':
+            uri = elem.attrs.get('src')
+        if not uri:
+            continue
+        testapp.xget(
+            200, 'http://localhost/+authcheck',
+            headers=ResponseHeaders({
+                'X-Original-URI': uri}))

@@ -38,12 +38,11 @@ The views are:
   Drops the authentication cookie.
 
 
-  For nginx the `auth_request`_ module is required and the configuration would something look like this:
+For nginx the `auth_request`_ module is required.
+You should use the ``devpi-genconfig`` script to generate your nginx configuration.
+Then you need to add the following to your server block before the first location block:
 
 .. code-block:: nginx
-
-    server {
-        ...
 
         # this redirects to the login view when not logged in
         recursive_error_pages on;
@@ -52,6 +51,9 @@ The views are:
             return 302 /+login;
         }
 
+        # lock down everything by default
+        auth_request /+authcheck;
+
         # the location to check whether the provided infos authenticate the user
         location = /+authcheck {
             internal;
@@ -59,39 +61,9 @@ The views are:
             proxy_pass_request_body off;
             proxy_set_header Content-Length "";
             proxy_set_header X-Original-URI $request_uri;
-            proxy_set_header X-outside-url https://$host;
-            proxy_pass http://localhost:3141;
+            proxy_set_header X-outside-url $scheme://$http_host;  # copy the value from your existing configuration
+            proxy_set_header X-Real-IP $remote_addr;  # copy the value from your existing configuration
+            proxy_pass http://localhost:3141;  # copy the value from your existing configuration
         }
-
-        # lock down everything by default
-        auth_request /+authcheck;
-
-        # pass on /+login without authentication check to allow login
-        location = /+login {
-            auth_request off;
-            proxy_set_header X-outside-url https://$host;
-            proxy_pass http://localhost:3141;
-        }
-
-        # pass on /+api without authentication check for URL endpoint discovery
-        location ~ /\+api$ {
-            auth_request off;
-            proxy_set_header X-outside-url https://$host;
-            proxy_pass http://localhost:3141;
-        }
-
-        # pass on /+static without authentication check for browser access to css etc
-        location /+static/ {
-            auth_request off;
-            proxy_set_header X-outside-url https://$host;
-            proxy_pass http://localhost:3141;
-        }
-
-        # use auth_request to lock down all the rest
-        location / {
-            proxy_set_header X-outside-url https://$host;
-            proxy_pass http://localhost:3141;
-        }
-    }
 
 .. _auth_request: http://nginx.org/en/docs/http/ngx_http_auth_request_module.html
