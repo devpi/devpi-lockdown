@@ -48,7 +48,7 @@ Then you need to add the following to your server block before the first locatio
         recursive_error_pages on;
         error_page 401 = @error401;
         location @error401 {
-            return 302 /+login;
+            return 302 /+login?goto_url=$request_uri;
         }
 
         # lock down everything by default

@@ -10,6 +10,8 @@ Changelog
 
 - Support for devpi-server 6.0.0.
 
+- Redirect back to original URL after login.
+
 - Automatically allow locations required for login page.
 
 

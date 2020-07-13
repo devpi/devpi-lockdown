@@ -11,11 +11,20 @@ def test_login(mapp, testapp):
     testapp.xget(401, 'http://localhost/+authcheck')
     testapp.xget(200, 'http://localhost/+login')
     r = testapp.post(
-        'http://localhost/+login',
+        'http://localhost/+login?goto_url=/foo/bar',
+        dict(username="user1", password="1", submit=""))
+    assert r.status_code == 302
+    assert r.location == 'http://localhost/foo/bar'
+    testapp.xget(200, 'http://localhost/+authcheck')
+
+
+def test_login_bad_goto_url(mapp, testapp):
+    mapp.create_user("user1", "1")
+    r = testapp.post(
+        'http://localhost/+login?goto_url=https://github.com',
         dict(username="user1", password="1", submit=""))
     assert r.status_code == 302
     assert r.location == 'http://localhost/'
-    testapp.xget(200, 'http://localhost/+authcheck')
 
 
 def test_always_ok(testapp):

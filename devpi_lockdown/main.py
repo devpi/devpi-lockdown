@@ -1,3 +1,4 @@
+from devpi_common.url import URL
 from pluggy import HookimplMarker
 from pyramid.compat import url_unquote, url_quote
 from pyramid.interfaces import IRequestExtensions
@@ -143,7 +144,14 @@ def login_view(context, request):
                 token['expiration'])
             headers = profile.get_headers(url_quote(
                 "%s:%s" % (user, token['password'])))
-            return HTTPFound(location=request.route_url('/'), headers=headers)
+            app_url = URL(request.application_url)
+            url = app_url.joinpath(request.GET.get('goto_url'))
+            if app_url.netloc != url.netloc:
+                # prevent abuse
+                url = request.route_url('/')
+            else:
+                url = url.url
+            return HTTPFound(location=url, headers=headers)
     return dict()
 
 
