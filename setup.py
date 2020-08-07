@@ -44,6 +44,7 @@ setup(
         'tests': [
             'webtest',
             'mock',
+            'devpi-client',
             'pytest',
             'pytest-cov',
             'pytest-flake8']},
