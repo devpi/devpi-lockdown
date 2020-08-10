@@ -10,12 +10,14 @@ from test_devpi_server.conftest import pypiurls  # noqa
 from test_devpi_server.conftest import storage_info  # noqa
 from test_devpi_server.conftest import testapp  # noqa
 from time import sleep
+import os
 import py
 import pytest
 import requests
 import socket
 import subprocess
 import sys
+import textwrap
 
 
 (makexom,)  # shut up pyflakes
@@ -124,7 +126,7 @@ events {
 }
 
 http {
-    access_log off;
+    access_log nginx_access.log combined;
     default_type  application/octet-stream;
     sendfile        on;
     keepalive_timeout 0;
@@ -270,3 +272,162 @@ def devpi(capfd, cmd_devpi, devpi_username, url_of_liveserver):
     (out, err) = capfd.readouterr()
     cmd_devpi.user = devpi_username
     return cmd_devpi
+
+
+def _path_parts(path):
+    path = path and str(path)  # py.path.local support
+    parts = []
+    while path:
+        folder, name = os.path.split(path)
+        if folder == path:  # root folder
+            folder, name = name, folder
+        if name:
+            parts.append(name)
+        path = folder
+    parts.reverse()
+    return parts
+
+
+def _path_join(base, *args):
+    # workaround for a py.path.local bug on Windows (`path.join('/x', abs=1)`
+    # should be py.path.local('X:\\x') where `X` is the current drive, when in
+    # fact it comes out as py.path.local('\\x'))
+    return py.path.local(base.join(*args, abs=1))
+
+
+def _filedefs_contains(base, filedefs, path):
+    """
+    whether `filedefs` defines a file/folder with the given `path`
+
+    `path`, if relative, will be interpreted relative to the `base` folder, and
+    whether relative or not, must refer to either the `base` folder or one of
+    its direct or indirect children. The base folder itself is considered
+    created if the filedefs structure is not empty.
+
+    """
+    unknown = object()
+    base = py.path.local(base)
+    path = _path_join(base, path)
+
+    path_rel_parts = _path_parts(path.relto(base))
+    for part in path_rel_parts:
+        if not isinstance(filedefs, dict):
+            return False
+        filedefs = filedefs.get(part, unknown)
+        if filedefs is unknown:
+            return False
+    return path_rel_parts or path == base and filedefs
+
+
+def create_files(base, filedefs):
+    for key, value in filedefs.items():
+        if isinstance(value, dict):
+            create_files(base.ensure(key, dir=1), value)
+        elif isinstance(value, py.builtin._basestring):
+            s = textwrap.dedent(value)
+            base.join(key).write(s)
+
+
+@pytest.fixture
+def initproj(tmpdir):
+    """Create a factory function for creating example projects.
+
+    Constructed folder/file hierarchy examples:
+
+    with `src_root` other than `.`:
+
+      tmpdir/
+          name/                  # base
+            src_root/            # src_root
+                name/            # package_dir
+                    __init__.py
+                name.egg-info/   # created later on package build
+            setup.py
+
+    with `src_root` given as `.`:
+
+      tmpdir/
+          name/                  # base, src_root
+            name/                # package_dir
+                __init__.py
+            name.egg-info/       # created later on package build
+            setup.py
+    """
+
+    def initproj_(nameversion, filedefs=None, src_root="."):
+        if filedefs is None:
+            filedefs = {}
+        if not src_root:
+            src_root = "."
+        if isinstance(nameversion, py.builtin._basestring):
+            parts = nameversion.split(str("-"))
+            if len(parts) == 1:
+                parts.append("0.1")
+            name, version = parts
+        else:
+            name, version = nameversion
+        base = tmpdir.join(name)
+        src_root_path = _path_join(base, src_root)
+        assert base == src_root_path or src_root_path.relto(
+            base
+        ), "`src_root` must be the constructed project folder or its direct or indirect subfolder"
+
+        base.ensure(dir=1)
+        create_files(base, filedefs)
+        if not _filedefs_contains(base, filedefs, "setup.py"):
+            create_files(
+                base,
+                {
+                    "setup.py": """
+                from setuptools import setup, find_packages
+                setup(
+                    name='{name}',
+                    description='{name} project',
+                    version='{version}',
+                    license='MIT',
+                    platforms=['unix', 'win32'],
+                    packages=find_packages('{src_root}'),
+                    package_dir={{'':'{src_root}'}},
+                )
+            """.format(
+                        **locals()
+                    )
+                },
+            )
+        if not _filedefs_contains(base, filedefs, src_root_path.join(name)):
+            create_files(
+                src_root_path, {name: {"__init__.py": "__version__ = {!r}".format(version)}}
+            )
+        manifestlines = [
+            "include {}".format(p.relto(base)) for p in base.visit(lambda x: x.check(file=1))
+        ]
+        create_files(base, {"MANIFEST.in": "\n".join(manifestlines)})
+        print("created project in {}".format(base))
+        base.chdir()
+        return base
+
+    return initproj_
+
+
+@pytest.fixture
+def create_venv(request, tmpdir_factory, monkeypatch):
+    monkeypatch.delenv("PYTHONDONTWRITEBYTECODE", raising=False)
+    venvdir = tmpdir_factory.mktemp("venv")
+    venvinstalldir = tmpdir_factory.mktemp("inst")
+
+    def do_create_venv():
+        # we need to change directory, otherwise the path will become
+        # too long on windows
+        venvinstalldir.ensure_dir()
+        with venvinstalldir.as_cwd():
+            subprocess.check_call([
+                "virtualenv", "--never-download", venvdir.strpath])
+        # activate
+        if sys.platform == "win32":
+            bindir = venvdir.join("Scripts")
+        else:
+            bindir = venvdir.join("bin")
+        monkeypatch.setenv("PATH", str(bindir) + os.pathsep + os.environ["PATH"])
+        return venvdir
+
+    return do_create_venv
