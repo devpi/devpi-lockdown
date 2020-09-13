@@ -34,6 +34,16 @@ def test_login_bad_goto_url(mapp, testapp):
     assert r.location == 'http://localhost/'
 
 
+def test_login_invalid_credentials(mapp, testapp):
+    mapp.create_user("user1", "1")
+    r = testapp.post(
+        'http://localhost/+login',
+        dict(username="user1", password="wrong", submit=""),
+        code=401)
+    assert 'Invalid credentials' in r.text
+    testapp.xget(401, 'http://localhost/+authcheck')
+
+
 def test_always_ok(testapp):
     testapp.xget(
         200, 'http://localhost/+authcheck',

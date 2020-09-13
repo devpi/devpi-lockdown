@@ -17,6 +17,8 @@ Changelog
 
 - Automatically allow locations required for login page.
 
+- Show error message for invalid credentials.
+
 
 1.0.1 - 2018-11-16
 ------------------

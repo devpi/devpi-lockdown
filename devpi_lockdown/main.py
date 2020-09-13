@@ -209,6 +209,7 @@ def get_cookie_profile(request, max_age=0):
     renderer="templates/login.pt")
 def login_view(context, request):
     auth_policy = request.registry.queryUtility(IAuthenticationPolicy)
+    error = None
     if 'submit' in request.POST:
         user = request.POST['username']
         password = request.POST['password']
@@ -227,7 +228,10 @@ def login_view(context, request):
             else:
                 url = url.url
             return HTTPFound(location=url, headers=headers)
-    return dict()
+        else:
+            request.response.status_code = 401
+            error = "Invalid credentials"
+    return dict(error=error)
 
 
 @view_config(
