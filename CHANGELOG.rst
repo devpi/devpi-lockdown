@@ -12,6 +12,9 @@ Changelog
 
 - Redirect back to original URL after login.
 
+- With devpi-server 6.0.0 the ``devpi-gen-config`` script
+  creates a ``nginx-devpi-lockdown.conf``.
+
 - Automatically allow locations required for login page.
 
 

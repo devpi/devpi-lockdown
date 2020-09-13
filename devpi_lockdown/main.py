@@ -16,6 +16,7 @@ except ImportError:
     from pyramid.authentication import _SimpleSerializer as SimpleSerializer
 from pyramid.view import view_config
 from webob.cookies import CookieProfile
+import re
 
 
 devpiserver_hookimpl = HookimplMarker("devpiserver")
@@ -34,6 +35,80 @@ def includeme(config):
         "/+logout",
         accept="text/html")
     config.scan()
+
+
+def find_injection_index(nginx_lines):
+    # find first location block
+    for index, line in enumerate(nginx_lines):
+        if line.strip().startswith("location"):
+            break
+    # go back until we have a non empty non comment line
+    for index in range(index - 1, 0, -1):
+        if nginx_lines[index].strip().startswith("#"):
+            continue
+        if not nginx_lines[index].strip():
+            continue
+        return index + 1
+
+
+nginx_template = """
+    # this redirects to the login view when not logged in
+    recursive_error_pages on;
+    error_page 401 = @error401;
+    location @error401 {{
+        return 302 /+login?goto_url=$request_uri;
+    }}
+
+    # lock down everything by default
+    auth_request /+authcheck;
+
+    # the location to check whether the provided infos authenticate the user
+    location = /+authcheck {{
+        internal;
+
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header X-Original-URI $request_uri;
+        {x_outside_url}
+        {x_real_ip}
+        {proxy_pass}
+    }}
+    """.rstrip()
+
+
+def _inject_lockdown_config(nginx_lines):
+    # inject our parts before the first location block
+    index = find_injection_index(nginx_lines)
+
+    def find_line(content):
+        regexp = re.compile(content, re.I)
+        for line in nginx_lines:
+            if regexp.search(line):
+                return "%s # same as in @proxy_to_app below" % line.strip()
+        return "couldn't find %r" % content
+
+    nginx_lines[index:index] = nginx_template.format(
+        x_outside_url=find_line("proxy_set_header.+x-outside-url"),
+        x_real_ip=find_line("proxy_set_header.+x-real-ip"),
+        proxy_pass=find_line("proxy_pass")).splitlines()
+
+
+@devpiserver_hookimpl(optionalhook=True)
+def devpiserver_genconfig(tw, config, argv, writer):
+    from devpi_server.genconfig import gen_nginx
+
+    # first get the regular nginx config
+    nginx_lines = []
+
+    def my_writer(basename, content):
+        nginx_lines.extend(content.splitlines())
+
+    gen_nginx(tw, config, argv, my_writer)
+    _inject_lockdown_config(nginx_lines)
+
+    # and write it out
+    nginxconf = "\n".join(nginx_lines)
+    writer("nginx-devpi-lockdown.conf", nginxconf)
 
 
 @devpiserver_hookimpl

@@ -1,4 +1,11 @@
+from devpi_server import __version__ as devpi_server_version
+from pkg_resources import parse_version
 from webob.headers import ResponseHeaders
+import pytest
+import subprocess
+
+
+devpi_server_version = parse_version(devpi_server_version)
 
 
 def test_importable():
@@ -54,3 +61,30 @@ def test_always_ok(testapp):
             200, 'http://localhost/+authcheck',
             headers=ResponseHeaders({
                 'X-Original-URI': uri}))
+
+
+@pytest.mark.skipif(
+    devpi_server_version < parse_version("6dev"),
+    reason="Needs devpiserver_genconfig hook")
+def test_gen_config(tmpdir):
+    import re
+
+    tmpdir.chdir()
+    proc = subprocess.Popen(["devpi-gen-config"])
+    res = proc.wait()
+    assert res == 0
+    path = tmpdir.join("gen-config").join("nginx-devpi-lockdown.conf")
+    assert path.check()
+    lines = path.read().splitlines()
+
+    def find_line(content):
+        regexp = re.compile(content, re.I)
+        for index, line in enumerate(lines):
+            if regexp.search(line):
+                return (index, line)
+
+    (server_index, server_line) = find_line("server_name")
+    (auth_index, auth_line) = find_line("auth_request")
+    (proxy_index, proxy_line) = find_line("location\\s+@proxy_to_app")
+    assert "/+authcheck" in auth_line
+    assert server_index < auth_index < proxy_index

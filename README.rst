@@ -40,7 +40,8 @@ The views are:
 
 For nginx the `auth_request`_ module is required.
 You should use the ``devpi-genconfig`` script to generate your nginx configuration.
-Then you need to add the following to your server block before the first location block:
+With devpi-server 6.0.0 or newer an ``nginx-devpi-lockdown.conf`` should have been generated.
+If not, then you need to add the following to your server block before the first location block:
 
 .. code-block:: nginx
 
