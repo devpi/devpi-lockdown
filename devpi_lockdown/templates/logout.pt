@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+    <head>
+        <title>devpi - Logout</title>
+        <metal:head use-macro="request.macros['head']" />
+        <script src="${request.static_url('devpi_web:static/docview.js')}"></script>
+    </head>
+    <body>
+        <metal:search use-macro="request.macros['navigation']" />
+        <div id="content">
+        <p></p>
+        <form name="logout" method="post">
+            <button name="submit">Logout</button>
+        </form>
+        </div>
+        <metal:footer use-macro="request.macros['footer']" />
+    </body>
+</html>

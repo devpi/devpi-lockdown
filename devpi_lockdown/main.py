@@ -145,6 +145,8 @@ def devpiserver_authcheck_always_ok(request):
         return True
     if route and route.name == 'login':
         return True
+    if route and route.name == 'logout':
+        return True
     if route and '+static' in route.name and '/+static' in request.url:
         return True
     if route and '+theme-static' in route.name and '/+theme-static' in request.url:
@@ -238,8 +240,17 @@ def login_view(context, request):
 
 @view_config(
     route_name="logout",
-    request_method="GET")
-def logout_view(context, request):
+    request_method="GET",
+    renderer="templates/logout.pt")
+def logout_get_view(context, request):
+    return dict()
+
+
+@view_config(
+    route_name="logout",
+    request_method="POST",
+    is_mutating=False)
+def logout_post_view(context, request):
     profile = get_cookie_profile(request)
     headers = profile.get_headers(None)
     return HTTPFound(location=request.route_url('/'), headers=headers)
