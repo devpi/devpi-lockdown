@@ -172,3 +172,69 @@ def test_forbidden_plugin(makemapp, maketestapp, makexom):
     testapp.xget(
         403, '/+authcheck',
         headers=ResponseHeaders({'X-Original-URI': 'http://localhost' + path}))
+
+
+@pytest.mark.skipif(
+    devpi_server_version < parse_version("6dev"),
+    reason="Needs devpiserver_authcheck_* hooks")
+def test_inherited_forbidden_plugin(makemapp, maketestapp, makexom):
+    from devpi_lockdown.main import devpiserver_hookimpl
+    from devpi_server.model import ACLList
+    from webob.headers import ResponseHeaders
+
+    class Plugin:
+        @devpiserver_hookimpl
+        def devpiserver_indexconfig_defaults(self, index_type):
+            return {"acl_pkg_read": ACLList([':ANONYMOUS:'])}
+
+        @devpiserver_hookimpl
+        def devpiserver_stage_get_principals_for_pkg_read(self, ixconfig):
+            return ixconfig.get('acl_pkg_read', None)
+
+        @devpiserver_hookimpl
+        def devpiserver_authcheck_forbidden(self, request):
+            if not request.authenticated_userid:
+                return
+            stage = request.context._stage
+            if not stage:
+                return
+            for _stage in stage.sro():
+                if not request.has_permission('pkg_read', _stage):
+                    return True
+
+    plugin = Plugin()
+    xom = makexom(plugins=[plugin])
+    testapp = maketestapp(xom)
+    mapp = makemapp(testapp)
+    api1 = mapp.create_and_use("someuser/dev", indexconfig=dict(
+        acl_pkg_read="someuser"))
+    mapp.upload_file_pypi("hello-1.0.tar.gz", b'content', "hello", "1.0")
+    (path,) = mapp.get_release_paths("hello")
+    # current user should be able to read package and index
+    testapp.xget(200, api1.index)
+    testapp.xget(
+        200, '/+authcheck',
+        headers=ResponseHeaders({'X-Original-URI': api1.index}))
+    testapp.xget(200, path)
+    testapp.xget(
+        200, '/+authcheck',
+        headers=ResponseHeaders({'X-Original-URI': 'http://localhost' + path}))
+    # create another user and index deriving from the previous
+    api2 = mapp.create_and_use("otheruser/dev", indexconfig=dict(bases="someuser/dev"))
+    # the user should be able to access the first index
+    testapp.xget(200, api1.index)
+    # but the authcheck will fail, so through nginx it will be blocked
+    testapp.xget(
+        403, '/+authcheck',
+        headers=ResponseHeaders({'X-Original-URI': api1.index}))
+    # the package should be forbidden
+    testapp.xget(403, path)
+    testapp.xget(
+        403, '/+authcheck',
+        headers=ResponseHeaders({'X-Original-URI': 'http://localhost' + path}))
+    # the users own index should be accessible
+    testapp.xget(200, api2.index)
+    # but the authcheck will fail due to inheritance, so through nginx it will be blocked
+    testapp.xget(
+        403, '/+authcheck',
+        headers=ResponseHeaders({'X-Original-URI': api2.index}))
