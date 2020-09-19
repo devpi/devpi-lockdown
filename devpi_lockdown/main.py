@@ -222,7 +222,7 @@ def login_view(context, request):
                 "%s:%s" % (user, token['password'])))
             app_url = URL(request.application_url)
             url = app_url.joinpath(request.GET.get('goto_url'))
-            if app_url.netloc != url.netloc:
+            if app_url.netloc != url.netloc or app_url.scheme != url.scheme:
                 # prevent abuse
                 url = request.route_url('/')
             else:
