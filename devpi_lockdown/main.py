@@ -222,6 +222,8 @@ def login_view(context, request):
                 "%s:%s" % (user, token['password'])))
             app_url = URL(request.application_url)
             url = app_url.joinpath(request.GET.get('goto_url'))
+            # plus signs are urldecoded to a space, this reverses that
+            url = url.replace(path=url.path.replace('/ ', '/+'))
             if app_url.netloc != url.netloc or app_url.scheme != url.scheme:
                 # prevent abuse
                 url = request.route_url('/')
