@@ -4,15 +4,22 @@ import pytest
 
 
 devpi_client_version = parse_version(devpi_client_version)
+is_atleast_client6 = devpi_client_version >= parse_version("6dev")
 
 
-def test_index_when_unauthorized(devpi):
+def test_index_when_unauthorized(capfd, devpi):
     devpi("logout")
-    devpi("index", code=403)
+    (out, err) = capfd.readouterr()
+    if is_atleast_client6:
+        devpi("index")
+        (out, err) = capfd.readouterr()
+        assert "you need to be logged" in out
+    else:
+        devpi("index", code=403)
 
 
 @pytest.mark.skipif(
-    devpi_client_version < parse_version("6.0dev"),
+    not is_atleast_client6,
     reason="Needs authentication passing to pip")
 def test_devpi_install(capfd, create_venv, devpi, initproj, monkeypatch):
     pkg = initproj("foo-1.0")
@@ -28,7 +35,7 @@ def test_devpi_install(capfd, create_venv, devpi, initproj, monkeypatch):
 
 
 @pytest.mark.skipif(
-    devpi_client_version < parse_version("6.0dev"),
+    not is_atleast_client6,
     reason="Needs authentication passing to pip")
 def test_devpi_test(capfd, create_venv, devpi, initproj, monkeypatch):
     foo = initproj(
