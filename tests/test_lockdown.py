@@ -238,3 +238,30 @@ def test_inherited_forbidden_plugin(makemapp, maketestapp, makexom):
     testapp.xget(
         403, '/+authcheck',
         headers=ResponseHeaders({'X-Original-URI': api2.index}))
+
+
+@pytest.mark.skipif(
+    devpi_server_version < parse_version("6dev"),
+    reason="Needs devpiserver_auth_denials hook")
+def test_deny_login(makemapp, maketestapp, makexom):
+    from devpi_lockdown import main as lockdown_plugin
+    from devpi_lockdown.main import devpiserver_hookimpl
+    from devpi_web import main as web_plugin
+
+    class Plugin:
+        @devpiserver_hookimpl
+        def devpiserver_auth_denials(self, request, acl, user, stage):
+            return self.results.pop()
+
+    plugin = Plugin()
+    xom = makexom(plugins=[lockdown_plugin, plugin, web_plugin])
+    testapp = maketestapp(xom)
+    mapp = makemapp(testapp)
+    plugin.results = [None]
+    mapp.create_user("user1", "1")
+    plugin.results = [[('user1', 'user_login')]]
+    r = testapp.post(
+        'http://localhost/+login?goto_url=/foo/bar',
+        dict(username="user1", password="1", submit=""),
+        code=401)
+    assert "has no permission to login with the" in r.text

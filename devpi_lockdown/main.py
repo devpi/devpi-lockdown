@@ -1,5 +1,7 @@
 from devpi_common.url import URL
+from devpi_server import __version__ as devpiserver_version
 from pluggy import HookimplMarker
+from pkg_resources import parse_version
 from pyramid.compat import url_unquote, url_quote
 from pyramid.interfaces import IRequestExtensions
 from pyramid.interfaces import IRootFactory
@@ -20,6 +22,9 @@ import re
 
 
 devpiserver_hookimpl = HookimplMarker("devpiserver")
+devpiserver_version = parse_version(devpiserver_version)
+
+is_atleast_server6 = (devpiserver_version >= parse_version("6dev"))
 
 
 def includeme(config):
@@ -220,8 +225,23 @@ def login_view(context, request):
             profile = get_cookie_profile(
                 request,
                 token['expiration'])
-            headers = profile.get_headers(url_quote(
-                "%s:%s" % (user, token['password'])))
+            cookie_value = url_quote("%s:%s" % (user, token['password']))
+            # set the credentials on the current request
+            request.cookies[profile.cookie_name] = cookie_value
+            # coherence check of the generated credentials
+            if user != request.authenticated_userid:
+                request.response.status_code = 401
+                error = "user %r could not be authenticated" % user
+                return dict(error=error)
+            # it is possible that a plugin removes the permission to login
+            # the permission was added in 6.0.0
+            if is_atleast_server6 and not request.has_permission('user_login'):
+                request.response.status_code = 401
+                error = (
+                    "user %r has no permission to login with the "
+                    "provided credentials" % user)
+                return dict(error=error)
+            headers = profile.get_headers(cookie_value)
             app_url = URL(request.application_url)
             url = app_url.joinpath(request.GET.get('goto_url'))
             # plus signs are urldecoded to a space, this reverses that
