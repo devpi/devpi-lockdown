@@ -220,7 +220,10 @@ def login_view(context, request):
     if 'submit' in request.POST:
         user = request.POST['username']
         password = request.POST['password']
-        token = auth_policy.auth.new_proxy_auth(user, password)
+        if is_atleast_server6:
+            token = auth_policy.auth.new_proxy_auth(user, password, request=request)
+        else:
+            token = auth_policy.auth.new_proxy_auth(user, password)
         if token:
             profile = get_cookie_profile(
                 request,
