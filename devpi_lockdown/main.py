@@ -11,6 +11,7 @@ from pyramid.httpexceptions import HTTPFound, HTTPOk, HTTPUnauthorized
 from pyramid.interfaces import IAuthenticationPolicy
 from pyramid.request import Request
 from pyramid.request import apply_request_extensions
+from pyramid.threadlocal import RequestContext
 from pyramid.traversal import DefaultRootFactory
 try:
     from pyramid.util import SimpleSerializer
@@ -164,6 +165,27 @@ def devpiserver_authcheck_unauthorized(request):
         return True
 
 
+def _auth_check_request(request):
+    if devpiserver_authcheck_always_ok(request=request):
+        request.log.debug(
+            "Authcheck always OK for %s (%s)",
+            request.url, request.matched_route.name)
+        return HTTPOk()
+    if not devpiserver_authcheck_unauthorized(request=request):
+        request.log.debug(
+            "Authcheck OK for %s (%s)",
+            request.url, request.matched_route.name)
+        return HTTPOk()
+    request.log.debug(
+        "Authcheck Unauthorized for %s (%s)",
+        request.url, request.matched_route.name)
+    user_agent = request.user_agent or ""
+    if 'devpi-client' in user_agent:
+        # devpi-client needs to know for proper error messages
+        return HTTPForbidden()
+    return HTTPUnauthorized()
+
+
 @view_config(route_name="/+authcheck")
 def authcheck_view(context, request):
     routes_mapper = request.registry.queryUtility(IRoutesMapper)
@@ -182,24 +204,8 @@ def authcheck_view(context, request):
         info['match'], info['route'])
     root_factory = orig_request.matched_route.factory or root_factory
     orig_request.context = root_factory(orig_request)
-    if devpiserver_authcheck_always_ok(request=orig_request):
-        request.log.debug(
-            "Authcheck always OK for %s (%s)",
-            url, orig_request.matched_route.name)
-        return HTTPOk()
-    if not devpiserver_authcheck_unauthorized(request=orig_request):
-        request.log.debug(
-            "Authcheck OK for %s (%s)",
-            url, orig_request.matched_route.name)
-        return HTTPOk()
-    request.log.debug(
-        "Authcheck Unauthorized for %s (%s)",
-        url, orig_request.matched_route.name)
-    user_agent = request.user_agent or ""
-    if 'devpi-client' in user_agent:
-        # devpi-client needs to know for proper error messages
-        return HTTPForbidden()
-    return HTTPUnauthorized()
+    with RequestContext(orig_request):
+        return _auth_check_request(orig_request)
 
 
 def get_cookie_profile(request, max_age=0):

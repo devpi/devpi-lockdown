@@ -91,6 +91,34 @@ def test_always_ok(testapp):
                 'X-Original-URI': uri}))
 
 
+def test_get_current_request(maketestapp, makexom):
+    from devpi_lockdown import main as lockdown_plugin
+    from devpi_lockdown.main import devpiserver_hookimpl
+    from pyramid.authentication import b64encode
+    from pyramid.threadlocal import get_current_request
+    from webob.headers import ResponseHeaders
+
+    calls = []
+
+    class Plugin:
+        @devpiserver_hookimpl
+        def devpiserver_get_credentials(self, request):
+            calls.append(request)
+            current_request = get_current_request()
+            assert request is current_request
+
+    plugin = Plugin()
+    xom = makexom(plugins=[lockdown_plugin, plugin])
+    testapp = maketestapp(xom)
+    basic_auth = '%s:%s' % ('user1', '1')
+    testapp.xget(
+        401, 'http://localhost/+authcheck',
+        headers=ResponseHeaders({
+            'Authorization': 'MyBasic %s' % b64encode(basic_auth).decode('ascii'),
+            'X-Original-URI': 'http://localhost/foo/bar/+simple/pkg'}))
+    assert calls
+
+
 @pytest.mark.skipif(
     devpi_server_version < parse_version("6dev"),
     reason="Needs devpiserver_genconfig hook")
