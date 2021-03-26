@@ -2,13 +2,19 @@ from devpi_common.url import URL
 from devpi_server import __version__ as devpiserver_version
 from pluggy import HookimplMarker
 from pkg_resources import parse_version
-from pyramid.compat import url_unquote, url_quote
 from pyramid.interfaces import IRequestExtensions
 from pyramid.interfaces import IRootFactory
 from pyramid.interfaces import IRoutesMapper
 from pyramid.httpexceptions import HTTPForbidden
 from pyramid.httpexceptions import HTTPFound, HTTPOk, HTTPUnauthorized
-from pyramid.interfaces import IAuthenticationPolicy
+try:
+    from pyramid.interfaces import IAuthenticationPolicy
+except ImportError:
+    IAuthenticationPolicy = object()
+try:
+    from pyramid.interfaces import ISecurityPolicy
+except ImportError:
+    ISecurityPolicy = object()
 from pyramid.request import Request
 from pyramid.request import apply_request_extensions
 from pyramid.threadlocal import RequestContext
@@ -18,6 +24,8 @@ try:
 except ImportError:
     from pyramid.authentication import _SimpleSerializer as SimpleSerializer
 from pyramid.view import view_config
+from urllib.parse import quote as url_quote
+from urllib.parse import unquote as url_unquote
 from webob.cookies import CookieProfile
 import re
 
@@ -188,10 +196,10 @@ def _auth_check_request(request):
 
 @view_config(route_name="/+authcheck")
 def authcheck_view(context, request):
-    routes_mapper = request.registry.queryUtility(IRoutesMapper)
+    routes_mapper = request.registry.getUtility(IRoutesMapper)
     root_factory = request.registry.queryUtility(
         IRootFactory, default=DefaultRootFactory)
-    request_extensions = request.registry.queryUtility(IRequestExtensions)
+    request_extensions = request.registry.getUtility(IRequestExtensions)
     url = request.headers.get('x-original-uri', request.url)
     orig_request = Request.blank(url, headers=request.headers)
     orig_request.log = request.log
@@ -221,15 +229,17 @@ def get_cookie_profile(request, max_age=0):
     route_name="login",
     renderer="templates/login.pt")
 def login_view(context, request):
-    auth_policy = request.registry.queryUtility(IAuthenticationPolicy)
+    policy = request.registry.queryUtility(IAuthenticationPolicy)
+    if policy is None:
+        policy = request.registry.getUtility(ISecurityPolicy)
     error = None
     if 'submit' in request.POST:
         user = request.POST['username']
         password = request.POST['password']
         if is_atleast_server6:
-            token = auth_policy.auth.new_proxy_auth(user, password, request=request)
+            token = policy.auth.new_proxy_auth(user, password, request=request)
         else:
-            token = auth_policy.auth.new_proxy_auth(user, password)
+            token = policy.auth.new_proxy_auth(user, password)
         if token:
             profile = get_cookie_profile(
                 request,

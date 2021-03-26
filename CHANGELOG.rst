@@ -19,6 +19,8 @@ Changelog
 
 - Show error message for invalid credentials.
 
+- Support Pyramid 2.0.
+
 
 1.0.1 - 2018-11-16
 ------------------
