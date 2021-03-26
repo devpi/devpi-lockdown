@@ -25,7 +25,7 @@ setup(
     url="https://github.com/devpi/devpi-lockdown",
     version=get_version("devpi_lockdown"),
     maintainer="Florian Schulze",
-    maintainer_email="florian.schulze@gmx.net",
+    maintainer_email="mail@florian-schulze.net",
     license="MIT",
     classifiers=[
         "Environment :: Web Environment",
