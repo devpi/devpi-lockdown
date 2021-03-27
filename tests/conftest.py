@@ -72,7 +72,7 @@ def wait_for_server_api(host, port, timeout=60):
         "The api on port %s, host %s didn't become accessible" % (port, host))
 
 
-@pytest.yield_fixture(scope="session")
+@pytest.fixture(scope="session")
 def server_directory():
     import tempfile
     srvdir = py.path.local(
@@ -186,7 +186,7 @@ def _livenginx(host, port, serverdir, server_host_port):
 
 @pytest.mark.skipif(
     "sys.platform.startswith('win')", reason="no nginx on windows")
-@pytest.yield_fixture(scope="session")
+@pytest.fixture(scope="session")
 def url_of_liveserver(request, server_directory, server_host_port):
     host = 'localhost'
     port = get_open_port(host)
