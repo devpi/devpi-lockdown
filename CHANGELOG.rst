@@ -1,7 +1,7 @@
 Changelog
 =========
 
-2.0.0 - Unreleased
+2.0.0 - 2021-05-16
 ------------------
 
 .. note:: The nginx configuration has changed from 1.x.
