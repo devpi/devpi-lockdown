@@ -7,6 +7,8 @@ jobs:
   tests:
     name: "Python ${{ matrix.python-version }}"
     runs-on: "ubuntu-latest"
+    env:
+      PY_COLORS: 1
 
     strategy:
       matrix:
@@ -31,4 +33,4 @@ jobs:
         run: |
           set -xe -o nounset
           python -m tox -a -vv
-          python -m tox -v -- -v
+          python -m tox -v -- -v --color=yes
