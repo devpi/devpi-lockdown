@@ -1,0 +1,13 @@
+<metal:block use-macro="main_template">
+    <metal:title fill-slot="title">devpi - Login</metal:title>
+    <metal:content fill-slot="content">
+        <p>${error}</p>
+        <form name="login" method="post">
+            <label for="username">Username</label>
+            <input name="username" type="text" />
+            <label for="password">Password</label>
+            <input name="password" type="password" />
+            <button name="submit">Login</button>
+        </form>
+    </metal:content>
+</metal:block>

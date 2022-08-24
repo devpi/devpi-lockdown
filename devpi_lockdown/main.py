@@ -1,7 +1,11 @@
+from devpi_common.metadata import parse_version
 from devpi_common.url import URL
 from devpi_server import __version__ as devpiserver_version
+try:
+    from devpi_web import __version__ as devpiweb_version
+except ImportError:
+    devpiweb_version = '0'
 from pluggy import HookimplMarker
-from pkg_resources import parse_version
 from pyramid.interfaces import IRequestExtensions
 from pyramid.interfaces import IRootFactory
 from pyramid.interfaces import IRoutesMapper
@@ -32,8 +36,14 @@ import re
 
 devpiserver_hookimpl = HookimplMarker("devpiserver")
 devpiserver_version = parse_version(devpiserver_version)
+devpiweb_version = parse_version(devpiweb_version)
 
 is_atleast_server6 = (devpiserver_version >= parse_version("6dev"))
+is_atleast_web5 = (devpiweb_version >= parse_version("5dev"))
+
+templatesbase = "templates"
+if is_atleast_web5:
+    templatesbase = "templates5"
 
 
 def includeme(config):
@@ -223,7 +233,7 @@ def get_cookie_profile(request, max_age=0):
 
 @view_config(
     route_name="login",
-    renderer="templates/login.pt")
+    renderer=f"{templatesbase}/login.pt")
 def login_view(context, request):
     policy = request.registry.queryUtility(IAuthenticationPolicy)
     if policy is None:
@@ -276,7 +286,7 @@ def login_view(context, request):
 @view_config(
     route_name="logout",
     request_method="GET",
-    renderer="templates/logout.pt")
+    renderer=f"{templatesbase}/logout.pt")
 def logout_get_view(context, request):
     return dict()
 

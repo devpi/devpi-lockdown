@@ -1,3 +1,4 @@
 include *.ini *.rst
 recursive-include devpi_lockdown/templates *.pt
+recursive-include devpi_lockdown/templates5 *.pt
 recursive-include tests *.py

@@ -1,0 +1,6 @@
+<metal:block use-macro="main_template">
+    <metal:title fill-slot="title">devpi - Logout</metal:title>
+    <metal:content fill-slot="content">
+        <metal:logoutform use-macro="macros.logout_form" />
+    </metal:content>
+</metal:block>
