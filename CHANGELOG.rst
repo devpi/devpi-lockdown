@@ -1,6 +1,12 @@
 Changelog
 =========
 
+2.0.1 - Unreleased
+------------------
+
+- Dropped Python 3.6 and 3.7 support.
+
+
 2.0.0 - 2021-05-16
 ------------------
 
