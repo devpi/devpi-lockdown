@@ -155,11 +155,7 @@ def devpiserver_authcheck_always_ok(request):
     route = request.matched_route
     if route and route.name.endswith('/+api'):
         return True
-    if route and route.name == '/+login':
-        return True
-    if route and route.name == 'login':
-        return True
-    if route and route.name == 'logout':
+    if route and route.name in ('/+login', 'login', 'logout'):
         return True
     if route and '+static' in route.name and '/+static' in request.url:
         return True
