@@ -6,6 +6,7 @@ import subprocess
 
 
 devpi_server_version = parse_version(devpi_server_version)
+pytestmark = [pytest.mark.notransaction]
 
 
 def test_importable():
