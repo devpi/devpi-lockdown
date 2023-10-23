@@ -15,7 +15,9 @@ jobs:
       matrix:
         include:
           - python-version: "3.8"
-            tox-envs: "py38,py38-devpi5"
+            tox-envs: "py38-devpi5"
+          - python-version: "3.8"
+            tox-envs: "py38"
           - python-version: "3.11"
             tox-envs: "py311"
 
