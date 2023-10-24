@@ -31,6 +31,16 @@ else:
     pytest_plugins = ["pytest_devpi_server", "test_devpi_server.plugin"]
 
 
+phase_report_key = pytest.StashKey()
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    rep = yield
+    item.stash.setdefault(phase_report_key, {})[rep.when] = rep
+    return rep
+
+
 @pytest.fixture
 def xom(request, makexom):
     import devpi_lockdown.main
@@ -78,6 +88,11 @@ def wait_for_server_api(host, port, timeout=60):
         timeout -= 1
     raise RuntimeError(
         "The api on port %s, host %s didn't become accessible" % (port, host))
+
+
+@pytest.fixture(scope="session")
+def nginx_directory(server_directory):
+    return server_directory.join("gen-config")
 
 
 @pytest.fixture(scope="session")
@@ -143,7 +158,7 @@ http {
 """
 
 
-def _livenginx(host, port, serverdir, server_host_port):
+def _livenginx(host, port, nginx_directory, serverdir, server_host_port):
     from devpi_lockdown.main import _inject_lockdown_config
     nginx = py.path.local.sysfind("nginx")
     if nginx is None:
@@ -161,7 +176,6 @@ def _livenginx(host, port, serverdir, server_host_port):
                 getattr(e, 'output', "Can't get process output on Windows"),
                 file=sys.stderr)
             raise
-    nginx_directory = serverdir.join("gen-config")
     nginx_devpi_conf = nginx_directory.join("nginx-devpi-lockdown.conf")
     if nginx_devpi_conf.check():
         nginx_devpi_conf_content = nginx_devpi_conf.read()
@@ -195,15 +209,24 @@ def _livenginx(host, port, serverdir, server_host_port):
 @pytest.mark.skipif(
     "sys.platform.startswith('win')", reason="no nginx on windows")
 @pytest.fixture(scope="session")
-def url_of_liveserver(request, server_directory, server_host_port):
+def _url_of_liveserver(nginx_directory, server_directory, server_host_port):
     host = 'localhost'
     port = get_open_port(host)
-    (p, url) = _livenginx(host, port, server_directory, server_host_port)
+    (p, url) = _livenginx(
+        host, port, nginx_directory, server_directory, server_host_port)
     try:
         yield url
     finally:
         p.terminate()
         p.wait()
+
+
+@pytest.fixture
+def url_of_liveserver(request, nginx_directory, _url_of_liveserver):
+    yield _url_of_liveserver
+    if request.node.stash[phase_report_key]['call'].outcome == 'failed':
+        print(nginx_directory.join('nginx_access.log').read())
+        print(nginx_directory.join('nginx_error.log').read())
 
 
 @pytest.fixture
