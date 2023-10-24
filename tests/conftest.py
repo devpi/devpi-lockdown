@@ -153,6 +153,7 @@ http {
     default_type  application/octet-stream;
     sendfile        on;
     keepalive_timeout 0;
+    client_body_buffer_size 10m;  # increased to avoid temporary file access
     include nginx-devpi-lockdown.conf;
 }
 """
