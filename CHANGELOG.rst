@@ -1,10 +1,14 @@
 Changelog
 =========
 
-2.0.1 - Unreleased
+3.0.0 - Unreleased
 ------------------
 
-- Dropped Python 3.6 and 3.7 support.
+- Require devpi-server >= 6.10.0.
+
+- Added support for Python 3.12.
+
+- Dropped Python 3.6, 3.7 and 3.8 support.
 
 
 2.0.0 - 2021-05-16

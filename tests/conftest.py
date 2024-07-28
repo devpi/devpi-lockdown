@@ -1,34 +1,15 @@
-from contextlib import closing
-from devpi_common.metadata import parse_version
 from devpi_common.url import URL
-from devpi_server import __version__ as _devpi_server_version
-from time import sleep
+from pathlib import Path
 import os
 import py
 import pytest
-import requests
-import socket
+import re
 import subprocess
 import sys
 import textwrap
 
 
-devpi_server_version = parse_version(_devpi_server_version)
-
-
-if devpi_server_version < parse_version("6.9.3dev"):
-    from test_devpi_server.conftest import gentmp  # noqa
-    from test_devpi_server.conftest import httpget  # noqa
-    from test_devpi_server.conftest import makemapp  # noqa
-    from test_devpi_server.conftest import maketestapp  # noqa
-    from test_devpi_server.conftest import makexom
-    from test_devpi_server.conftest import mapp  # noqa
-    from test_devpi_server.conftest import pypiurls  # noqa
-    from test_devpi_server.conftest import storage_info  # noqa
-    from test_devpi_server.conftest import testapp  # noqa
-    (makexom,)  # shut up pyflakes
-else:
-    pytest_plugins = ["pytest_devpi_server", "test_devpi_server.plugin"]
+pytest_plugins = ["pytest_devpi_server", "test_devpi_server.plugin"]
 
 
 phase_report_key = pytest.StashKey()
@@ -41,6 +22,16 @@ def pytest_runtest_makereport(item, call):
     return rep
 
 
+@pytest.fixture(scope="class")
+def adjust_nginx_conf_content(nginx_path):
+    def adjust_nginx_conf_content(content):
+        listen = re.search(r'listen \d+;', content).group(0)
+        new_content = nginx_path.joinpath('nginx-devpi-lockdown.conf').read_text()
+        new_content = new_content.replace('listen 80;', listen)
+        return new_content
+    return adjust_nginx_conf_content
+
+
 @pytest.fixture
 def xom(request, makexom):
     import devpi_lockdown.main
@@ -49,185 +40,30 @@ def xom(request, makexom):
         (devpi_web.main, None),
         (devpi_lockdown.main, None)])
     from devpi_server.main import set_default_indexes
-    with xom.keyfs.transaction(write=True):
+    with xom.keyfs.write_transaction():
         set_default_indexes(xom.model)
     return xom
 
 
-def get_open_port(host):
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind((host, 0))
-        s.listen(1)
-        port = s.getsockname()[1]
-    return port
-
-
-def wait_for_port(host, port, timeout=60):
-    while timeout > 0:
-        with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-            s.settimeout(1)
-            if s.connect_ex((host, port)) == 0:
-                return timeout
-        sleep(1)
-        timeout -= 1
-    raise RuntimeError(
-        "The port %s on host %s didn't become accessible" % (port, host))
-
-
-def wait_for_server_api(host, port, timeout=60):
-    timeout = wait_for_port(host, port, timeout=timeout)
-    while timeout > 0:
-        try:
-            r = requests.get("http://%s:%s/+api" % (host, port), timeout=1)
-        except requests.exceptions.ConnectionError:
-            pass
-        else:
-            if r.status_code == 200:
-                return
-        sleep(1)
-        timeout -= 1
-    raise RuntimeError(
-        "The api on port %s, host %s didn't become accessible" % (port, host))
-
-
-@pytest.fixture(scope="session")
-def nginx_directory(server_directory):
-    return server_directory.join("gen-config")
-
-
-@pytest.fixture(scope="session")
-def server_directory():
-    import tempfile
-    srvdir = py.path.local(
-        tempfile.mkdtemp(prefix='test-', suffix='-server-directory'))
-    yield srvdir
-    srvdir.remove(ignore_errors=True)
-
-
-def _liveserver(host, port, serverdir):
-    path = py.path.local.sysfind("devpi-server")
-    assert path
-    init_path = py.path.local.sysfind("devpi-init")
-    assert init_path
-    args = [
-        "--serverdir", str(serverdir)]
+@pytest.fixture(scope="class")
+def nginx_path(request):
     try:
-        subprocess.check_call(
-            [str(init_path)] + args + ['--no-root-pypi'])
-    except subprocess.CalledProcessError as e:
-        # this won't output anything on Windows
-        print(
-            getattr(e, 'output', "Can't get process output on Windows"),
-            file=sys.stderr)
-        raise
-    p = subprocess.Popen(
-        [str(path)] + args + ["--debug", "--host", host, "--port", str(port)])
-    wait_for_server_api(host, port)
-    return (p, URL("http://%s:%s" % (host, port)))
-
-
-@pytest.fixture(scope="session")
-def server_host_port(server_directory):
-    host = 'localhost'
-    port = get_open_port(host)
-    (p, url) = _liveserver(host, port, server_directory)
-    try:
-        yield (host, port)
-    finally:
-        p.terminate()
-        p.wait()
-
-
-nginx_conf_content = """
-worker_processes  1;
-daemon off;
-pid nginx.pid;
-error_log nginx_error.log;
-
-events {
-    worker_connections  32;
-}
-
-http {
-    access_log nginx_access.log combined;
-    default_type  application/octet-stream;
-    sendfile        on;
-    keepalive_timeout 0;
-    client_body_buffer_size 10m;  # increased to avoid temporary file access
-    include nginx-devpi-lockdown.conf;
-}
-"""
-
-
-def _livenginx(host, port, nginx_directory, serverdir, server_host_port):
-    from devpi_lockdown.main import _inject_lockdown_config
-    nginx = py.path.local.sysfind("nginx")
-    if nginx is None:
-        pytest.skip("No nginx executable found.")
-    gen_config_path = py.path.local.sysfind("devpi-gen-config")
-    assert gen_config_path
-    (server_host, server_port) = server_host_port
-    with serverdir.as_cwd():
-        try:
-            subprocess.check_call(
-                [str(gen_config_path), "--host", server_host, "--port", str(server_port)])
-        except subprocess.CalledProcessError as e:
-            # this won't output anything on Windows
-            print(
-                getattr(e, 'output', "Can't get process output on Windows"),
-                file=sys.stderr)
-            raise
-    nginx_devpi_conf = nginx_directory.join("nginx-devpi-lockdown.conf")
-    if nginx_devpi_conf.check():
-        nginx_devpi_conf_content = nginx_devpi_conf.read()
-    else:
-        nginx_lines = nginx_directory.join("nginx-devpi.conf").read().splitlines()
-        _inject_lockdown_config(nginx_lines)
-        nginx_devpi_conf_content = "\n".join(nginx_lines)
-    nginx_devpi_conf_content = nginx_devpi_conf_content.replace(
-        "listen 80;",
-        "listen %s;" % port)
-    nginx_devpi_conf.write(nginx_devpi_conf_content)
-    nginx_conf = nginx_directory.join("nginx.conf")
-    nginx_conf.write(nginx_conf_content)
-    try:
-        subprocess.check_output([
-            str(nginx), "-t",
-            "-c", nginx_conf.strpath,
-            "-p", nginx_directory.strpath], stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as e:
-        # this won't output anything on Windows
-        print(
-            getattr(e, 'output', "Can't get process output on Windows"),
-            file=sys.stderr)
-        raise
-    p = subprocess.Popen([
-        str(nginx), "-c", nginx_conf.strpath, "-p", nginx_directory.strpath])
-    wait_for_port(host, port)
-    return (p, URL("http://%s:%s" % (host, port)))
-
-
-@pytest.mark.skipif(
-    "sys.platform.startswith('win')", reason="no nginx on windows")
-@pytest.fixture(scope="session")
-def _url_of_liveserver(nginx_directory, server_directory, server_host_port):
-    host = 'localhost'
-    port = get_open_port(host)
-    (p, url) = _livenginx(
-        host, port, nginx_directory, server_directory, server_host_port)
-    try:
-        yield url
-    finally:
-        p.terminate()
-        p.wait()
+        server_path = request.getfixturevalue("server_path")
+    except pytest.FixtureLookupError:
+        server_path = Path(request.getfixturevalue("server_directory"))
+    return server_path / "gen-config"
 
 
 @pytest.fixture
-def url_of_liveserver(request, nginx_directory, _url_of_liveserver):
-    yield _url_of_liveserver
-    if request.node.stash[phase_report_key]['call'].outcome == 'failed':
-        print(nginx_directory.join('nginx_access.log').read())
-        print(nginx_directory.join('nginx_error.log').read())
+def url_of_liveserver(request, nginx_path, nginx_host_port):
+    (host, port) = nginx_host_port
+    yield URL(f'http://{host}:{port}')
+    key = request.node.stash[phase_report_key]
+    if (result := key.get('call')) is not None and result.outcome == 'failed':
+        if (access_log := nginx_path / 'nginx_access.log').exists():
+            print(access_log.read_text())
+        if (error_log := nginx_path / 'nginx_error.log').exists():
+            print(error_log.read_text())
 
 
 @pytest.fixture
