@@ -1,7 +1,6 @@
 from devpi_common.url import URL
 from pathlib import Path
 import os
-import py
 import pytest
 import re
 import subprocess
@@ -143,7 +142,6 @@ def devpi(capfd, cmd_devpi, devpi_username, url_of_liveserver):
 
 
 def _path_parts(path):
-    path = path and str(path)  # py.path.local support
     parts = []
     while path:
         folder, name = os.path.split(path)
@@ -154,13 +152,6 @@ def _path_parts(path):
         path = folder
     parts.reverse()
     return parts
-
-
-def _path_join(base, *args):
-    # workaround for a py.path.local bug on Windows (`path.join('/x', abs=1)`
-    # should be py.path.local('X:\\x') where `X` is the current drive, when in
-    # fact it comes out as py.path.local('\\x'))
-    return py.path.local(base.join(*args, abs=1))
 
 
 def _filedefs_contains(base, filedefs, path):
@@ -174,10 +165,10 @@ def _filedefs_contains(base, filedefs, path):
 
     """
     unknown = object()
-    base = py.path.local(base)
-    path = _path_join(base, path)
+    base = Path(base)
+    path = base / path
 
-    path_rel_parts = _path_parts(path.relto(base))
+    path_rel_parts = _path_parts(path.relative_to(base))
     for part in path_rel_parts:
         if not isinstance(filedefs, dict):
             return False
@@ -191,7 +182,7 @@ def create_files(base, filedefs):
     for key, value in filedefs.items():
         if isinstance(value, dict):
             create_files(base.ensure(key, dir=1), value)
-        elif isinstance(value, py.builtin._basestring):
+        elif isinstance(value, str):
             s = textwrap.dedent(value)
             base.join(key).write(s)
 
@@ -222,27 +213,27 @@ def initproj(tmpdir):
             setup.py
     """
 
-    def initproj_(nameversion, filedefs=None, src_root="."):
+    def initproj_(nameversion, filedefs=None, src_root=".", kind="setup.py"):
         if filedefs is None:
             filedefs = {}
         if not src_root:
             src_root = "."
-        if isinstance(nameversion, py.builtin._basestring):
-            parts = nameversion.split(str("-"))
+        if isinstance(nameversion, str):
+            parts = nameversion.split("-")
             if len(parts) == 1:
                 parts.append("0.1")
             name, version = parts
         else:
             name, version = nameversion
         base = tmpdir.join(name)
-        src_root_path = _path_join(base, src_root)
+        src_root_path = base / src_root
         assert base == src_root_path or src_root_path.relto(
             base
         ), "`src_root` must be the constructed project folder or its direct or indirect subfolder"
 
         base.ensure(dir=1)
         create_files(base, filedefs)
-        if not _filedefs_contains(base, filedefs, "setup.py"):
+        if not _filedefs_contains(base, filedefs, "setup.py") and kind == "setup.py":
             create_files(
                 base,
                 {
@@ -262,6 +253,33 @@ def initproj(tmpdir):
                     )
                 },
             )
+        if not _filedefs_contains(base, filedefs, "pyproject.toml") and kind == "setup.cfg":
+            create_files(base, {"pyproject.toml": """
+                    [build-system]
+                    requires = ["setuptools", "wheel"]
+                """})
+        if not _filedefs_contains(base, filedefs, "setup.cfg") and kind == "setup.cfg":
+            create_files(base, {"setup.cfg": """
+                    [metadata]
+                    name = {name}
+                    description= {name} project
+                    version = {version}
+                    license = MIT
+                    packages = find:
+                """.format(**locals())})
+        if not _filedefs_contains(base, filedefs, "pyproject.toml") and kind == "pyproject.toml":
+            create_files(base, {"pyproject.toml": """
+                    [build-system]
+                    requires = ["flit_core >=3.2"]
+                    build-backend = "flit_core.buildapi"
+
+                    [project]
+                    name = "{name}"
+                    description= "{name} project"
+                    version = "{version}"
+                    license = {{text="MIT"}}
+                    packages = "find:"
+                """.format(**locals())})
         if not _filedefs_contains(base, filedefs, src_root_path.join(name)):
             create_files(
                 src_root_path, {name: {"__init__.py": "__version__ = {!r}".format(version)}}
@@ -277,6 +295,27 @@ def initproj(tmpdir):
     return initproj_
 
 
+def _check_output(request, args, env=None):
+    result = subprocess.run(
+        args,  # noqa: S603 only used for tests
+        check=False,
+        env=env,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if not result.returncode:
+        print(result.stdout.decode())  # noqa: T201 only used for tests
+    else:
+        capman = request.config.pluginmanager.getplugin("capturemanager")
+        capman.suspend()
+        print(result.stdout.decode())  # noqa: T201 only used for tests
+        capman.resume()
+    result.check_returncode()
+    return result
+
+
+def check_call(request, args, env=None):
+    _check_output(request, args, env=env)
+
+
 @pytest.fixture
 def create_venv(request, tmpdir_factory, monkeypatch):
     monkeypatch.delenv("PYTHONDONTWRITEBYTECODE", raising=False)
@@ -287,15 +326,15 @@ def create_venv(request, tmpdir_factory, monkeypatch):
         # we need to change directory, otherwise the path will become
         # too long on windows
         venvinstalldir.ensure_dir()
-        with venvinstalldir.as_cwd():
-            subprocess.check_call([
-                "virtualenv", "--never-download", venvdir.strpath])
+        os.chdir(venvinstalldir)
+        check_call(request, [
+            "virtualenv", "--never-download", str(venvdir)])
         # activate
         if sys.platform == "win32":
-            bindir = venvdir.join("Scripts")
+            bindir = "Scripts"
         else:
-            bindir = venvdir.join("bin")
-        monkeypatch.setenv("PATH", str(bindir) + os.pathsep + os.environ["PATH"])
+            bindir = "bin"
+        monkeypatch.setenv("PATH", bindir + os.pathsep + os.environ["PATH"])
         return venvdir
 
     return do_create_venv
