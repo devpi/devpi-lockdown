@@ -27,6 +27,8 @@ def adjust_nginx_conf_content(nginx_path):
         listen = re.search(r'listen \d+;', content).group(0)
         new_content = nginx_path.joinpath('nginx-devpi-lockdown.conf').read_text()
         new_content = new_content.replace('listen 80;', listen)
+        new_content = f"proxy_temp_path tmp;\n{new_content}"
+        new_content = f"client_body_temp_path tmp;\n{new_content}"
         return new_content
     return adjust_nginx_conf_content
 
