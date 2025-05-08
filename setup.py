@@ -34,7 +34,7 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python"] + [
             "Programming Language :: Python :: %s" % x
-            for x in "3 3.8 3.9 3.10 3.11 3.12".split()],
+            for x in "3 3.9 3.10 3.11 3.12 3.13".split()],
     entry_points={
         'devpi_server': [
             "devpi-lockdown = devpi_lockdown.main"]},
@@ -49,6 +49,6 @@ setup(
             'pytest',
             'pytest-cov']},
     include_package_data=True,
-    python_requires='>=3.8',
+    python_requires='>=3.9',
     zip_safe=False,
     packages=['devpi_lockdown'])

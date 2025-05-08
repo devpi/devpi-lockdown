@@ -6,7 +6,7 @@ Changelog
 
 - Require devpi-server >= 6.10.0.
 
-- Added support for Python 3.12.
+- Added support for Python 3.12 and 3.13.
 
 - Dropped Python 3.6, 3.7 and 3.8 support.
 
