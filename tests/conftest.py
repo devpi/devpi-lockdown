@@ -129,6 +129,8 @@ def devpi(capfd, cmd_devpi, devpi_username, url_of_liveserver):
     (out, err) = capfd.readouterr()
     cmd_devpi("login", "root", "--password", "", code=200)
     (out, err) = capfd.readouterr()
+    cmd_devpi("index", "root/pypi", "mirror_no_project_list=true", "mirror_use_external_urls=true", code=200)
+    (out, err) = capfd.readouterr()
     cmd_devpi("user", "-c", devpi_username, "password=123", "email=123", code=201)
     (out, err) = capfd.readouterr()
     cmd_devpi("login", devpi_username, "--password", "123", code=200)
