@@ -1,4 +1,6 @@
+from devpi_common.metadata import parse_version
 from devpi_common.url import URL
+from devpi_server import __version__ as _devpi_server_version
 from pathlib import Path
 import os
 import pytest
@@ -6,6 +8,9 @@ import re
 import subprocess
 import sys
 import textwrap
+
+
+devpi_server_version = parse_version(_devpi_server_version)
 
 
 pytest_plugins = ["pytest_devpi_server", "test_devpi_server.plugin"]
@@ -29,7 +34,7 @@ def adjust_nginx_conf_content(nginx_path):
         new_content = new_content.replace('listen 80;', listen)
         if "proxy_temp_path" not in new_content:
             new_content = f"proxy_temp_path tmp;\n{new_content}"
-        if "client_body_temp_path" not in new_content:
+        if devpi_server_version < parse_version("6.18.0.dev4"):
             new_content = f"client_body_temp_path tmp;\n{new_content}"
         return new_content
     return adjust_nginx_conf_content

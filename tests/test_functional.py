@@ -1,5 +1,5 @@
 from devpi import __version__ as devpi_client_version
-from pkg_resources import parse_version
+from devpi_common.metadata import parse_version
 import pytest
 
 
