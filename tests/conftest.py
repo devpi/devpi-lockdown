@@ -31,14 +31,14 @@ def remote_index_info(server_version):
         class MirrorInfo:
             no_project_list_option = "mirror_no_project_list"
             type = "mirror"
-            use_external_urls_options = "mirror_use_external_urls"
+            use_external_urls_option = "mirror_use_external_urls"
 
         return MirrorInfo()
 
     class RemoteInfo:
         no_project_list_option = "remote_no_project_list"
         type = "remote"
-        use_external_urls_options = "remote_use_external_urls"
+        use_external_urls_option = "remote_use_external_urls"
 
     return RemoteInfo()
 
