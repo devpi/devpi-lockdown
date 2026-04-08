@@ -1,6 +1,5 @@
 from devpi_common.metadata import parse_version
 from devpi_common.url import URL
-from devpi_server import __version__ as _devpi_server_version
 from pathlib import Path
 import os
 import pytest
@@ -8,9 +7,6 @@ import re
 import subprocess
 import sys
 import textwrap
-
-
-devpi_server_version = parse_version(_devpi_server_version)
 
 
 pytest_plugins = ["pytest_devpi_server", "test_devpi_server.plugin"]
@@ -26,15 +22,36 @@ def pytest_runtest_makereport(item, call):
     return rep
 
 
+@pytest.fixture
+def remote_index_info(server_version):
+    from devpi_common.metadata import parse_version
+
+    if server_version < parse_version("7.0.0.dev2"):
+
+        class MirrorInfo:
+            no_project_list_option = "mirror_no_project_list"
+            type = "mirror"
+            use_external_urls_options = "mirror_use_external_urls"
+
+        return MirrorInfo()
+
+    class RemoteInfo:
+        no_project_list_option = "remote_no_project_list"
+        type = "remote"
+        use_external_urls_options = "remote_use_external_urls"
+
+    return RemoteInfo()
+
+
 @pytest.fixture(scope="class")
-def adjust_nginx_conf_content(nginx_path):
+def adjust_nginx_conf_content(nginx_path, server_version):
     def adjust_nginx_conf_content(content):
         listen = re.search(r'listen \d+;', content).group(0)
         new_content = nginx_path.joinpath('nginx-devpi-lockdown.conf').read_text()
         new_content = new_content.replace('listen 80;', listen)
         if "proxy_temp_path" not in new_content:
             new_content = f"proxy_temp_path tmp;\n{new_content}"
-        if devpi_server_version < parse_version("6.18.0.dev4"):
+        if server_version < parse_version("6.18.0.dev4"):
             new_content = f"client_body_temp_path tmp;\n{new_content}"
         return new_content
     return adjust_nginx_conf_content
@@ -133,12 +150,18 @@ def devpi_username():
 
 
 @pytest.fixture
-def devpi(capfd, cmd_devpi, devpi_username, url_of_liveserver):
+def devpi(capfd, cmd_devpi, devpi_username, remote_index_info, url_of_liveserver):
     cmd_devpi("use", url_of_liveserver.url, code=200)
     (out, err) = capfd.readouterr()
     cmd_devpi("login", "root", "--password", "", code=200)
     (out, err) = capfd.readouterr()
-    cmd_devpi("index", "root/pypi", "mirror_no_project_list=true", "mirror_use_external_urls=true", code=200)
+    cmd_devpi(
+        "index",
+        "root/pypi",
+        f"{remote_index_info.no_project_list_option}=true",
+        f"{remote_index_info.use_external_urls_option}=true",
+        code=200,
+    )
     (out, err) = capfd.readouterr()
     cmd_devpi("user", "-c", devpi_username, "password=123", "email=123", code=201)
     (out, err) = capfd.readouterr()
