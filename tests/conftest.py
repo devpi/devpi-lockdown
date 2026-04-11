@@ -32,6 +32,7 @@ def remote_index_info(server_version):
             no_project_list_option = "mirror_no_project_list"
             type = "mirror"
             use_external_urls_option = "mirror_use_external_urls"
+            url_option = "mirror_url"
 
         return MirrorInfo()
 
@@ -39,6 +40,7 @@ def remote_index_info(server_version):
         no_project_list_option = "remote_no_project_list"
         type = "remote"
         use_external_urls_option = "remote_use_external_urls"
+        url_option = "remote_url"
 
     return RemoteInfo()
 
@@ -155,9 +157,14 @@ def devpi(capfd, cmd_devpi, devpi_username, remote_index_info, url_of_liveserver
     (out, err) = capfd.readouterr()
     cmd_devpi("login", "root", "--password", "", code=200)
     (out, err) = capfd.readouterr()
+    cmd_devpi("index", "-l", code=200)
+    (out, err) = capfd.readouterr()
+    create = "root/pypi" not in out
     cmd_devpi(
         "index",
+        *(["-c"] if create else []),
         "root/pypi",
+        *([f"type={remote_index_info.type}", f"{remote_index_info.url_option}=https://pypi.org/simple/"] if create else []),
         f"{remote_index_info.no_project_list_option}=true",
         f"{remote_index_info.use_external_urls_option}=true",
         code=200,
