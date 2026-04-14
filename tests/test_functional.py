@@ -45,6 +45,7 @@ def test_devpi_test(capfd, create_venv, devpi, initproj, monkeypatch):
               [testenv]
               commands = python -c "print('ok')"
               deps = bar==1.0
+              install_command = python -I -m pip install -vv {opts} {packages}
             """})
     with foo.as_cwd():
         devpi("upload", code=200)
