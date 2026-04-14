@@ -61,5 +61,5 @@ def test_devpi_test(capfd, create_venv, devpi, initproj, monkeypatch):
         x for x in out.splitlines()
         if 'install_deps' in x or 'installdeps' in x]
     assert "bar==1.0" in line
-    assert "commands succeeded" in out or "congratulations :)" in out
-    assert "success" in out
+    assert "commands succeeded" in out or "congratulations :)" in out, out
+    assert "success" in out, out
