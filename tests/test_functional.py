@@ -55,7 +55,7 @@ def test_devpi_test(capfd, create_venv, devpi, initproj, monkeypatch):
     assert "file_upload of foo" in out
     venvdir = create_venv()
     monkeypatch.setenv("VIRTUAL_ENV", venvdir.strpath)
-    devpi("test", "foo")
+    devpi("test", "foo", "--tox-args=-vv")
     (out, err) = capfd.readouterr()
     (line,) = [
         x for x in out.splitlines()
