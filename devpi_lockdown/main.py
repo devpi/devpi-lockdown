@@ -2,11 +2,7 @@ from devpi_common.url import URL
 from devpi_server import __version__ as devpiserver_version
 from pluggy import HookimplMarker
 from pkg_resources import parse_version
-from pyramid.interfaces import IRequestExtensions
-from pyramid.interfaces import IRootFactory
-from pyramid.interfaces import IRoutesMapper
-from pyramid.httpexceptions import HTTPForbidden
-from pyramid.httpexceptions import HTTPFound, HTTPOk, HTTPUnauthorized
+from pyramid.httpexceptions import HTTPFound
 try:
     from pyramid.interfaces import IAuthenticationPolicy
 except ImportError:
@@ -15,10 +11,6 @@ try:
     from pyramid.interfaces import ISecurityPolicy
 except ImportError:
     ISecurityPolicy = object()
-from pyramid.request import Request
-from pyramid.request import apply_request_extensions
-from pyramid.threadlocal import RequestContext
-from pyramid.traversal import DefaultRootFactory
 try:
     from pyramid.util import SimpleSerializer
 except ImportError:
@@ -167,49 +159,6 @@ def devpiserver_authcheck_always_ok(request):
 def devpiserver_authcheck_unauthorized(request):
     if not request.authenticated_userid:
         return True
-
-
-def _auth_check_request(request):
-    if devpiserver_authcheck_always_ok(request=request):
-        request.log.debug(
-            "Authcheck always OK for %s (%s)",
-            request.url, request.matched_route.name)
-        return HTTPOk()
-    if not devpiserver_authcheck_unauthorized(request=request):
-        request.log.debug(
-            "Authcheck OK for %s (%s)",
-            request.url, request.matched_route.name)
-        return HTTPOk()
-    request.log.debug(
-        "Authcheck Unauthorized for %s (%s)",
-        request.url, request.matched_route.name)
-    user_agent = request.user_agent or ""
-    if 'devpi-client' in user_agent:
-        # devpi-client needs to know for proper error messages
-        return HTTPForbidden()
-    return HTTPUnauthorized()
-
-
-@view_config(route_name="/+authcheck")
-def authcheck_view(context, request):
-    routes_mapper = request.registry.getUtility(IRoutesMapper)
-    root_factory = request.registry.queryUtility(
-        IRootFactory, default=DefaultRootFactory)
-    request_extensions = request.registry.getUtility(IRequestExtensions)
-    url = request.headers.get('x-original-uri', request.url)
-    orig_request = Request.blank(url, headers=request.headers)
-    orig_request.log = request.log
-    orig_request.registry = request.registry
-    if request_extensions:
-        apply_request_extensions(
-            orig_request, extensions=request_extensions)
-    info = routes_mapper(orig_request)
-    (orig_request.matchdict, orig_request.matched_route) = (
-        info['match'], info['route'])
-    root_factory = orig_request.matched_route.factory or root_factory
-    orig_request.context = root_factory(orig_request)
-    with RequestContext(orig_request):
-        return _auth_check_request(orig_request)
 
 
 def get_cookie_profile(request, max_age=0):
