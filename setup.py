@@ -10,7 +10,7 @@ def get_version(path):
         for line in f:
             if '__version__' in line:
                 parts = line.split("=")
-                return parts[1].split("'")[1]
+                return parts[1].split('"')[1]
 
 
 here = os.path.abspath(os.path.dirname(__file__))
